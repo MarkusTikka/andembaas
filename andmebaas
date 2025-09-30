@@ -1,7 +1,5 @@
 -- phpMyAdmin SQL Dump
 -- Library database improved schema
--- Host: mariadb
--- Server version: 12.0.2-MariaDB-ubu2404
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -18,11 +16,10 @@ SET time_zone = "+00:00";
 -- ============================================
 CREATE TABLE `authors` (
     `id` INT NOT NULL AUTO_INCREMENT,
-    `name` VARCHAR(255) NOT NULL UNIQUE,
-    `birth_year` YEAR NULL,
+    `name` VARCHAR(255) NOT NULL,       -- UNIQUE eemaldatud
+    `birth_year` YEAR NULL,             -- sünniaasta lisatud
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 
 -- ============================================
 -- Genres table
@@ -91,13 +88,14 @@ CREATE TABLE `transactions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================
--- Trigger: transactions BEFORE INSERT
+-- Triggers
 -- ============================================
 DELIMITER $$
 
-CREATE TRIGGER `transactions_before_insert` 
-BEFORE INSERT ON `transactions` 
-FOR EACH ROW 
+-- BEFORE INSERT trigger: kontrollid
+CREATE TRIGGER transactions_before_insert
+BEFORE INSERT ON transactions
+FOR EACH ROW
 BEGIN
     -- return_date ei tohi olla enne issue_date
     IF NEW.return_date IS NOT NULL AND NEW.return_date < NEW.issue_date THEN
@@ -110,35 +108,25 @@ BEGIN
     END IF;
 
     -- eksemplar peab olema saadaval
-    IF EXISTS (SELECT 1 FROM book_copies WHERE id = NEW.copy_id AND status != 'available') THEN
+    IF EXISTS (
+        SELECT 1 FROM book_copies
+        WHERE id = NEW.copy_id AND status <> 'available'
+    ) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'This copy is not available for borrowing';
     END IF;
-END $$
+END$$
 
--- ============================================
--- Trigger: transactions BEFORE UPDATE
--- ============================================
-CREATE TRIGGER `transactions_before_update`
-BEFORE UPDATE ON `transactions`
+-- AFTER INSERT trigger: muuda koopia staatus laenutatuks
+CREATE TRIGGER transactions_after_insert
+AFTER INSERT ON transactions
 FOR EACH ROW
 BEGIN
-    -- return_date ei tohi olla enne issue_date
-    IF NEW.return_date IS NOT NULL AND NEW.return_date < NEW.issue_date THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'return_date cannot be earlier than issue_date';
+    IF NEW.return_date IS NULL THEN
+        UPDATE book_copies
+        SET status = 'borrowed'
+        WHERE id = NEW.copy_id AND status = 'available';
     END IF;
-
-    -- issue_date ei tohi olla tulevikus
-    IF NEW.issue_date > CURDATE() + INTERVAL 1 DAY THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'issue_date cannot be in the future';
-    END IF;
-
-    -- kontrolli eksemplari saadavust, kui status muutub borrowed-iks
-    IF NEW.status = 'borrowed' AND OLD.status != 'borrowed' THEN
-        IF EXISTS (SELECT 1 FROM book_copies WHERE id = NEW.copy_id AND status != 'available') THEN
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'This copy is not available for borrowing';
-        END IF;
-    END IF;
-END $$
+END$$
 
 DELIMITER ;
 
