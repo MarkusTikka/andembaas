@@ -1,130 +1,147 @@
 -- phpMyAdmin SQL Dump
--- version 5.2.2
--- https://www.phpmyadmin.net/
---
+-- Library database improved schema
 -- Host: mariadb
--- Generation Time: Sep 23, 2025 at 12:56 PM
 -- Server version: 12.0.2-MariaDB-ubu2404
--- PHP Version: 8.2.27
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+00:00";
 
- /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
- /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
- /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
- /*!40101 SET NAMES utf8mb4 */;
+-- Character set
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
 
---
--- Database: `Library`
---
+-- ============================================
+-- Authors table
+-- ============================================
+CREATE TABLE `authors` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(255) NOT NULL UNIQUE,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- --------------------------------------------------------
+-- ============================================
+-- Genres table
+-- ============================================
+CREATE TABLE `genres` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(100) NOT NULL UNIQUE,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- Table structure for table `books`
---
-
+-- ============================================
+-- Books table
+-- ============================================
 CREATE TABLE `books` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` varchar(255) NOT NULL,
-  `author` varchar(50) NOT NULL,
-  `genre` varchar(100) NOT NULL,
-  `image` varchar(255) DEFAULT NULL,
-  `quantity` int(11) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `isbn` VARCHAR(20) NOT NULL UNIQUE,
+    `title` VARCHAR(255) NOT NULL,
+    `author_id` INT NOT NULL,
+    `genre_id` INT NOT NULL,
+    `edition` VARCHAR(50),
+    PRIMARY KEY (`id`),
+    CONSTRAINT `fk_book_author` FOREIGN KEY (`author_id`) REFERENCES `authors`(`id`) ON DELETE RESTRICT,
+    CONSTRAINT `fk_book_genre` FOREIGN KEY (`genre_id`) REFERENCES `genres`(`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- --------------------------------------------------------
+-- ============================================
+-- Book copies table
+-- ============================================
+CREATE TABLE `book_copies` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `book_id` INT NOT NULL,
+    `barcode` VARCHAR(50) NOT NULL UNIQUE,
+    `status` ENUM('available','borrowed','lost','damaged') NOT NULL DEFAULT 'available',
+    PRIMARY KEY (`id`),
+    KEY `book_id` (`book_id`),
+    CONSTRAINT `fk_copy_book` FOREIGN KEY (`book_id`) REFERENCES `books`(`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- Table structure for table `transactions`
---
-
-CREATE TABLE `transactions` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `user_id` int(11) NOT NULL,
-  `book_id` int(11) NOT NULL,
-  `issue_date` date NOT NULL,
-  `return_date` date DEFAULT NULL,
-  `status` enum('borrowed','returned') NOT NULL DEFAULT 'borrowed',
-  `lost` tinyint(1) NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id`),
-  KEY `user_id` (`user_id`),
-  KEY `book_id` (`book_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
-
---
--- Triggers for `transactions`
---
-DELIMITER $$
-CREATE TRIGGER `transactions_before_insert` BEFORE INSERT ON `transactions` FOR EACH ROW BEGIN
-    -- Cannot have return_date if status is borrowed and lost=0
-    IF NEW.status = 'borrowed' AND NEW.lost = 0 AND NEW.return_date IS NOT NULL THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Cannot have return_date set when status is borrowed and lost=0';
-    END IF;
-
-    -- If status = returned, return_date must be set
-    IF NEW.status = 'returned' AND NEW.return_date IS NULL THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'return_date must be set when status is returned';
-    END IF;
-
-    -- If lost = 1, return_date must be NULL
-    IF NEW.lost = 1 AND NEW.return_date IS NOT NULL THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'return_date must be NULL when lost=1';
-    END IF;
-END
-$$
-DELIMITER ;
-DELIMITER $$
-CREATE TRIGGER `transactions_before_update` BEFORE UPDATE ON `transactions` FOR EACH ROW BEGIN
-    -- Same checks on update
-    IF NEW.status = 'borrowed' AND NEW.lost = 0 AND NEW.return_date IS NOT NULL THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Cannot have return_date set when status is borrowed and lost=0';
-    END IF;
-
-    IF NEW.status = 'returned' AND NEW.return_date IS NULL THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'return_date must be set when status is returned';
-    END IF;
-
-    IF NEW.lost = 1 AND NEW.return_date IS NOT NULL THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'return_date must be NULL when lost=1';
-    END IF;
-END
-$$
-DELIMITER ;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `users`
---
-
+-- ============================================
+-- Users table
+-- ============================================
 CREATE TABLE `users` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) NOT NULL,
-  `email` varchar(255) NOT NULL UNIQUE,
-  `password` varchar(255) NOT NULL,
-  `role` enum('admin','user') NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(255) NOT NULL,
+    `email` VARCHAR(255) NOT NULL UNIQUE,
+    `password` VARCHAR(255) NOT NULL,
+    `role` ENUM('admin','user') NOT NULL,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
---
--- Foreign keys
---
-ALTER TABLE `transactions`
-  ADD CONSTRAINT `transactions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `transactions_ibfk_2` FOREIGN KEY (`book_id`) REFERENCES `books` (`id`) ON DELETE CASCADE;
+-- ============================================
+-- Transactions table
+-- ============================================
+CREATE TABLE `transactions` (
+    `id` INT NOT NULL AUTO_INCREMENT,
+    `user_id` INT NOT NULL,
+    `copy_id` INT NOT NULL,
+    `issue_date` DATE NOT NULL,
+    `return_date` DATE DEFAULT NULL,
+    `status` ENUM('borrowed','returned','lost','damaged') NOT NULL DEFAULT 'borrowed',
+    PRIMARY KEY (`id`),
+    KEY `user_id` (`user_id`),
+    KEY `copy_id` (`copy_id`),
+    CONSTRAINT `fk_transaction_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE RESTRICT,
+    CONSTRAINT `fk_transaction_copy` FOREIGN KEY (`copy_id`) REFERENCES `book_copies`(`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================
+-- Trigger: transactions BEFORE INSERT
+-- ============================================
+DELIMITER $$
+
+CREATE TRIGGER `transactions_before_insert` 
+BEFORE INSERT ON `transactions` 
+FOR EACH ROW 
+BEGIN
+    -- return_date ei tohi olla enne issue_date
+    IF NEW.return_date IS NOT NULL AND NEW.return_date < NEW.issue_date THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'return_date cannot be earlier than issue_date';
+    END IF;
+
+    -- issue_date ei tohi olla tulevikus (üleeile piiriks)
+    IF NEW.issue_date > CURDATE() + INTERVAL 1 DAY THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'issue_date cannot be in the future';
+    END IF;
+
+    -- eksemplar peab olema saadaval
+    IF EXISTS (SELECT 1 FROM book_copies WHERE id = NEW.copy_id AND status != 'available') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'This copy is not available for borrowing';
+    END IF;
+END $$
+
+-- ============================================
+-- Trigger: transactions BEFORE UPDATE
+-- ============================================
+CREATE TRIGGER `transactions_before_update`
+BEFORE UPDATE ON `transactions`
+FOR EACH ROW
+BEGIN
+    -- return_date ei tohi olla enne issue_date
+    IF NEW.return_date IS NOT NULL AND NEW.return_date < NEW.issue_date THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'return_date cannot be earlier than issue_date';
+    END IF;
+
+    -- issue_date ei tohi olla tulevikus
+    IF NEW.issue_date > CURDATE() + INTERVAL 1 DAY THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'issue_date cannot be in the future';
+    END IF;
+
+    -- kontrolli eksemplari saadavust, kui status muutub borrowed-iks
+    IF NEW.status = 'borrowed' AND OLD.status != 'borrowed' THEN
+        IF EXISTS (SELECT 1 FROM book_copies WHERE id = NEW.copy_id AND status != 'available') THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'This copy is not available for borrowing';
+        END IF;
+    END IF;
+END $$
+
+DELIMITER ;
 
 COMMIT;
 
- /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
- /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
- /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
